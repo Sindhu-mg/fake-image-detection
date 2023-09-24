@@ -1,0 +1,84 @@
+# Importing necessary libraries
+import os
+import numpy as np
+import tensorflow as tf
+from tensorflow import keras
+from tensorflow.keras import layers
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import classification_report
+from PIL import Image
+
+for dirname, _, filenames in os.walk('/kaggle/input'):
+    for filename in filenames:
+        print(os.path.join(dirname, filename))
+
+        IMG_WIDTH, IMG_HEIGHT = 128, 128
+BATCH_SIZE = 32
+EPOCHS = 10
+
+def load_and_preprocess_data(data_dir):
+    real_images = []
+    fake_images = []
+    
+    for subdir in os.listdir(data_dir):
+        if subdir == 'real':
+            label = 0
+        else:
+            label = 1
+        
+        subdir_path = os.path.join(data_dir, subdir)
+        for filename in os.listdir(subdir_path):
+            image = Image.open(os.path.join(subdir_path, filename))
+            image = image.resize((IMG_WIDTH, IMG_HEIGHT))
+            image = np.array(image) / 255.0  # Normalize pixel values to [0, 1]
+            
+            if label == 0:
+                real_images.append(image)
+            else:
+                fake_images.append(image)
+    
+    X = np.concatenate((real_images, fake_images), axis=0)
+    y = np.concatenate((np.zeros(len(real_images)), np.ones(len(fake_images))), axis=0)
+    
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+    
+    return X_train, X_test, y_train, y_test
+
+    # Define the fake image detection model
+model = keras.Sequential([
+    # Convolutional layers for feature extraction
+    layers.Conv2D(32, (3, 3), activation='relu', input_shape=(IMG_WIDTH, IMG_HEIGHT, 3)),
+    layers.MaxPooling2D((2, 2)),
+    layers.Conv2D(64, (3, 3), activation='relu'),
+    layers.MaxPooling2D((2, 2)),
+    layers.Conv2D(128, (3, 3), activation='relu'),
+    layers.MaxPooling2D((2, 2)),
+    
+    # Flatten and fully connected layers for classification
+    layers.Flatten(),
+    layers.Dense(128, activation='relu'),
+    layers.Dropout(0.5),
+    layers.Dense(1, activation='sigmoid')  # Output layer for binary classification (fake or real)
+])
+
+# Compile the model
+model.compile(optimizer='adam',
+              loss='binary_crossentropy',
+              metrics=['accuracy'])
+
+# Load and preprocess your dataset
+data_dir = 'path_to_your_dataset_directory'
+X_train, X_test, y_train, y_test = load_and_preprocess_data(path_to_your_dataset_directory)
+
+# Train the model
+model.fit(X_train, y_train, epochs=EPOCHS, batch_size=BATCH_SIZE, validation_split=0.2)
+
+# Evaluate the model on the test dataset
+test_loss, test_accuracy = model.evaluate(X_test, y_test)
+
+# Print classification report
+y_pred = (model.predict(X_test) > 0.5).astype("int32")
+print(classification_report(y_test, y_pred))
+
+# Save the model to a file for later use
+model.save('fake_image_detection_model.h5')
